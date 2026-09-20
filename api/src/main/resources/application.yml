@@ -1,0 +1,17 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: api
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/0fccfdfb-001d-423c-b030-02e8b7d6af18/v2.0
+          audiences:
+            - "e6d429a2-efe4-4e01-96b4-b3e665442e4f"
+
+microservices:
+  clientes:
+    base-url: http://localhost:8082

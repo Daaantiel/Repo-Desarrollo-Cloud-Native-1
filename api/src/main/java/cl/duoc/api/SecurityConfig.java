@@ -1,6 +1,7 @@
 package cl.duoc.api;
 
 import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -24,8 +25,8 @@ public class SecurityConfig {
                         SessionCreationPolicy.STATELESS
                 ))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/api/data")
-                        .hasAuthority("SCOPE_access_as_user")
+                        .requestMatchers(HttpMethod.GET, "/api/data").hasAuthority("SCOPE_access_as_user")
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/products/**").hasAuthority("SCOPE_access_as_user")
                         .anyRequest().denyAll()
                 )
                 .oauth2ResourceServer(oauth ->

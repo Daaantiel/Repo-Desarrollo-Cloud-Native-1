@@ -1,227 +1,75 @@
 import { useState } from 'react';
-import { useMsal } from '@azure/msal-react';
-import { InteractionStatus } from '@azure/msal-browser';
+import { useIsAuthenticated, useMsal } from '@azure/msal-react';
+import { Navbar } from './components/Navbar';
+import { Catalog } from './pages/Catalog';
+import { Orders } from './pages/Orders';
 import { tokenRequest } from './authConfig';
-import { obtenerToken } from './token';
-import { consultarApi } from './api';
+
+export type TabType = 'catalog' | 'orders';
 
 export default function App() {
-  const { instance, accounts, inProgress } = useMsal();
-  const [salida, setSalida] = useState('');
-  const [salidaParte2, setSalidaParte2] = useState('');
-  const [salidaParte3, setSalidaParte3] = useState('');
-  const [ocupado, setOcupado] = useState(false);
+  const isAuthenticated = useIsAuthenticated();
+  const { instance } = useMsal();
+  const [activeTab, setActiveTab] = useState<TabType>('catalog');
 
-  const account = instance.getActiveAccount() ?? accounts[0];
-  const bloqueado = ocupado || inProgress !== InteractionStatus.None;
-  const apiLista = Boolean(import.meta.env.VITE_API_BASE_URL);
-  const bffListo = Boolean(import.meta.env.VITE_BFF_BASE_URL);
-
-  async function ejecutar(action: () => Promise<void>) {
-    setOcupado(true);
-    setSalida('');
+  const handleLogin = async () => {
     try {
-      await action();
-    } catch (error) {
-      setSalida(error instanceof Error ? error.message : String(error));
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  async function entrar() {
-    const result = await instance.loginPopup({
-      ...tokenRequest,
-      prompt: 'select_account',
-    });
-    instance.setActiveAccount(result.account);
-  }
-
-  // PARTE 1
-  async function probarToken() {
-    if (!account) return;
-    const token = await obtenerToken(instance, account);
-    if (!token.accessToken) {
-      throw new Error('No se obtuvo access token');
-    }
-    setSalida(
-      'Token de API obtenido. Vence: ' +
-        (token.expiresOn?.toLocaleString() ?? 'Consultar metadatos')
-    );
-  }
-
-  async function consultar() {
-    if (account) {
-      setSalida(await consultarApi(instance, account));
-    }
-  }
-
-  //ms-clientes
-  async function consultarBff() {
-    if (!account) return;
-    setOcupado(true);
-    setSalidaParte2('');
-    try {
-      const token = await obtenerToken(instance, account);
-      if (!token.accessToken) {
-        throw new Error('No se obtuvo access token');
-      }
-      const baseUrl = import.meta.env.VITE_BFF_BASE_URL;
-      if (!baseUrl) {
-        throw new Error('VITE_BFF_BASE_URL no está configurada');
-      }
-      const response = await fetch(`${baseUrl}/api/data`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token.accessToken}`,
-        },
+      const result = await instance.loginPopup({
+        ...tokenRequest,
+        prompt: 'select_account',
       });
-      const texto = await response.text();
-      if (!response.ok) {
-        throw new Error(`Error BFF ${response.status}: ${texto}`);
-      }
-      const data = JSON.parse(texto);
-      setSalidaParte2(JSON.stringify(data, null, 2));
-    } catch (error) {
-      setSalidaParte2(error instanceof Error ? error.message : String(error));
-    } finally {
-      setOcupado(false);
+      instance.setActiveAccount(result.account);
+    } catch (e) {
+      console.error('Error al iniciar sesión:', e);
     }
-  }
-
-  //ms-productos
-  async function consultarProductosBff() {
-    if (!account) return;
-    setOcupado(true);
-    setSalidaParte3('');
-    try {
-      const token = await obtenerToken(instance, account);
-      if (!token.accessToken) {
-        throw new Error('No se obtuvo access token');
-      }
-      const baseUrl = import.meta.env.VITE_BFF_BASE_URL;
-      if (!baseUrl) {
-        throw new Error('VITE_BFF_BASE_URL no está configurada');
-      }
-      const response = await fetch(`${baseUrl}/api/catalog/products`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token.accessToken}`,
-        },
-      });
-      const texto = await response.text();
-      if (!response.ok) {
-        throw new Error(`Error BFF ${response.status}: ${texto}`);
-      }
-      const data = JSON.parse(texto);
-      setSalidaParte3(JSON.stringify(data, null, 2));
-    } catch (error) {
-      setSalidaParte3(error instanceof Error ? error.message : String(error));
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  async function salir() {
-    if (account) {
-      await instance.logoutPopup({ account });
-    }
-  }
+  };
 
   return (
-    <main
-      style={{
-        maxWidth: 850,
-        margin: '40px auto',
-        fontFamily: 'Arial',
-        padding: 20,
-      }}
-    >
-      <h1>Demo Entra ID y API Gateway</h1>
-      <p>Estado MSAL: {inProgress}</p>
-      <p>Ocupado: {String(ocupado)}</p>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f4f6f9', fontFamily: 'Arial, sans-serif' }}>
+      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      {!account ? (
-        <button disabled={bloqueado} onClick={() => void ejecutar(entrar)}>
-          Iniciar sesión
-        </button>
-      ) : (
-        <>
-          <p>Sesión: {account.username}</p>
-          <hr />
-          <h2>Comprobación Parte 1</h2>
-          <p>
-            Autenticación con Microsoft Entra ID y acceso a la API protegida.
-          </p>
-          <button disabled={bloqueado} onClick={() => void ejecutar(probarToken)}>
-            Obtener token API
-          </button>{' '}
-          <button
-            disabled={bloqueado || !apiLista}
-            onClick={() => void ejecutar(consultar)}
-          >
-            Consultar API
-          </button>
-          <pre
+      <main style={{ padding: '20px' }}>
+        {!isAuthenticated ? (
+          <div
             style={{
-              whiteSpace: 'pre-wrap',
-              overflowWrap: 'anywhere',
-              backgroundColor: '#f5f5f5',
-              padding: 15,
-              marginTop: 15,
+              maxWidth: '600px',
+              margin: '60px auto',
+              padding: '40px',
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              textAlign: 'center',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
             }}
           >
-            {salida}
-          </pre>
-
-          <hr />
-          <h2>Comprobación Parte 2</h2>
-          <p>Acceso a ms-clientes a través del BFF.</p>
-          <button
-            disabled={bloqueado || !bffListo}
-            onClick={() => void consultarBff()}
-          >
-            Consultar BFF + ms-clientes
-          </button>
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              overflowWrap: 'anywhere',
-              backgroundColor: '#f5f5f5',
-              padding: 15,
-              marginTop: 15,
-            }}
-          >
-            {salidaParte2}
-          </pre>
-
-          <hr />
-          <h2>Comprobación Parte 3</h2>
-          <p>Acceso a ms-productos a través del BFF.</p>
-          <button
-            disabled={bloqueado || !bffListo}
-            onClick={() => void consultarProductosBff()}
-          >
-            Consultar BFF + ms-productos
-          </button>
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              overflowWrap: 'anywhere',
-              backgroundColor: '#f5f5f5',
-              padding: 15,
-              marginTop: 15,
-            }}
-          >
-            {salidaParte3}
-          </pre>
-
-          <hr />
-          <button disabled={bloqueado} onClick={() => void ejecutar(salir)}>
-            Cerrar sesión
-          </button>
-        </>
-      )}
-    </main>
+            <div style={{ fontSize: '3.5rem', marginBottom: '10px' }}>⚡</div>
+            <h1 style={{ color: '#2a75bb', margin: '0 0 10px 0' }}>Bienvenido a PokéMarket360</h1>
+            <p style={{ color: '#666', lineHeight: '1.5', marginBottom: '25px' }}>
+              Plataforma e-commerce distribuida sobre AWS EC2 con autenticación centralizada mediante Microsoft Entra ID.
+            </p>
+            <button
+              onClick={handleLogin}
+              style={{
+                padding: '12px 24px',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                backgroundColor: '#ffcb05',
+                color: '#2a75bb',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+              }}
+            >
+            Iniciar Sesión con Microsoft
+            </button>
+          </div>
+        ) : (
+          <div>
+            {activeTab === 'catalog' && <Catalog />}
+            {activeTab === 'orders' && <Orders />}
+          </div>
+        )}
+      </main>
+    </div>
   );
 }

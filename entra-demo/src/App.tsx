@@ -41,7 +41,7 @@ export default function App() {
               boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
             }}
           >
-            <div style={{ fontSize: '3.5rem', marginBottom: '10px' }}>⚡</div>
+            <div style={{ fontSize: '3.5rem', marginBottom: '10px' }}></div>
             <h1 style={{ color: '#2a75bb', margin: '0 0 10px 0' }}>Bienvenido a PokéMarket360</h1>
             <p style={{ color: '#666', lineHeight: '1.5', marginBottom: '25px' }}>
               Plataforma e-commerce distribuida sobre AWS EC2 con autenticación centralizada mediante Microsoft Entra ID.

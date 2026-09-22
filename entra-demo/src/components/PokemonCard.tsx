@@ -1,6 +1,5 @@
 import React from 'react';
 
-
 export interface PokemonProduct {
   id: number;
   nombre: string;
@@ -21,7 +20,6 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   onOrder,
   isOrdering = false
 }) => {
-
   const imageUrl =
     product.imagenUrl ||
     `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${product.id}.png`;
@@ -31,114 +29,146 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   return (
     <div
       style={{
-        border: '2px solid #2a75bb',
-        borderRadius: '12px',
+        border: '1px solid #e2e8f0',
+        borderRadius: '18px',
         padding: '16px',
-        width: '220px',
+        width: '230px',
         backgroundColor: '#ffffff',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+        boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        gap: '12px',
+        position: 'relative'
       }}
     >
-  
+     
       <div
         style={{
-          backgroundColor: '#f5f5f5',
-          borderRadius: '8px',
-          padding: '10px',
+          backgroundColor: '#f8fafc',
+          borderRadius: '14px',
+          padding: '12px',
           width: '100%',
-          textAlign: 'center',
-          marginBottom: '12px'
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          position: 'relative',
+          boxSizing: 'border-box',
+          minHeight: '140px',
+          border: '1px solid #f1f5f9'
         }}
       >
+        
+        <span
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            backgroundColor: hasStock ? '#ecfdf5' : '#fef2f2',
+            color: hasStock ? '#047857' : '#dc2626',
+            border: `1px solid ${hasStock ? '#a7f3d0' : '#fecaca'}`,
+            padding: '3px 8px',
+            borderRadius: '12px',
+            fontSize: '0.72rem',
+            fontWeight: 800
+          }}
+        >
+          {hasStock ? `${product.stock} un.` : 'Agotado'}
+        </span>
+
         <img
           src={imageUrl}
           alt={product.nombre}
           onError={(e) => {
-            // Reintenta con el sprite estándar si falla la imagen principal
             (e.target as HTMLImageElement).src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${product.id}.png`;
           }}
           style={{
-            width: '120px',
-            height: '120px',
-            objectFit: 'contain'
+            width: '110px',
+            height: '110px',
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 6px 8px rgba(0, 0, 0, 0.12))'
           }}
         />
       </div>
 
-
-      <div style={{ textAlign: 'center', width: '100%' }}>
+     
+      <div style={{ textAlign: 'center', width: '100%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <h3
           style={{
-            margin: '0 0 8px 0',
-            fontSize: '1.2rem',
-            color: '#333',
-            textTransform: 'capitalize'
+            margin: 0,
+            fontSize: '1.15rem',
+            fontWeight: 800,
+            color: '#0f172a',
+            textTransform: 'capitalize',
+            letterSpacing: '-0.2px'
           }}
         >
           {product.nombre}
         </h3>
 
         {product.tipo && (
-          <span
-            style={{
-              fontSize: '0.75rem',
-              backgroundColor: '#e0e0e0',
-              padding: '3px 8px',
-              borderRadius: '10px',
-              color: '#555',
-              fontWeight: 'bold',
-              textTransform: 'uppercase'
-            }}
-          >
-            {product.tipo}
-          </span>
+          <div>
+            <span
+              style={{
+                fontSize: '0.68rem',
+                backgroundColor: '#f1f5f9',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                color: '#475569',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                border: '1px solid #e2e8f0'
+              }}
+            >
+              {product.tipo}
+            </span>
+          </div>
         )}
 
         <div
           style={{
-            margin: '12px 0 6px 0',
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-            color: '#2a75bb'
+            marginTop: '4px',
+            fontSize: '1.35rem',
+            fontWeight: 800,
+            color: '#1e1b4b'
           }}
         >
           ${product.precio.toLocaleString('es-CL')}
         </div>
-
-        <p
-          style={{
-            margin: '0 0 12px 0',
-            fontSize: '0.85rem',
-            fontWeight: '600',
-            color: hasStock ? '#2e7d32' : '#c62828'
-          }}
-        >
-          {hasStock ? `Stock: ${product.stock} un.` : '❌ Agotado'}
-        </p>
       </div>
 
-      {/* Botón para Comprar / Pedir */}
+      
       <button
         onClick={() => onOrder(product)}
         disabled={!hasStock || isOrdering}
         style={{
           width: '100%',
-          padding: '10px',
-          backgroundColor: hasStock ? '#ffcb05' : '#e0e0e0',
-          color: hasStock ? '#2a75bb' : '#9e9e9e',
+          padding: '10px 14px',
+          backgroundColor: hasStock ? (isOrdering ? '#cbd5e1' : '#f59e0b') : '#f1f5f9',
+          color: hasStock ? (isOrdering ? '#475569' : '#0f172a') : '#94a3b8',
           border: 'none',
-          borderRadius: '6px',
-          fontWeight: 'bold',
-          fontSize: '0.9rem',
+          borderRadius: '10px',
+          fontWeight: 800,
+          fontSize: '0.88rem',
           cursor: hasStock && !isOrdering ? 'pointer' : 'not-allowed',
-          boxShadow: hasStock ? '0 2px 4px rgba(0,0,0,0.15)' : 'none'
+          boxShadow: hasStock && !isOrdering ? '0 4px 12px rgba(245, 158, 11, 0.28)' : 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px'
         }}
       >
-        {isOrdering ? 'Procesando...' : hasStock ? '⚡ Pedir Carta' : 'Sin Stock'}
+        {isOrdering ? (
+          <span>Procesando...</span>
+        ) : hasStock ? (
+          <>
+            <span></span> Pedir Carta
+          </>
+        ) : (
+          'Sin Stock'
+        )}
       </button>
     </div>
   );

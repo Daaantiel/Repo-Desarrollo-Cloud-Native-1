@@ -23,33 +23,57 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
 
   return (
     <nav style={{
-      backgroundColor: '#2a75bb',
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
       color: '#ffffff',
-      padding: '12px 24px',
+      padding: '12px 32px',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+      position: 'sticky',
+      top: 0,
+      zIndex: 1000
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '1.5rem' }}></span>
-        <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold' }}>
+      {/* Brand Logo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '1.4rem' }}></span>
+        <h1 style={{ 
+          margin: 0, 
+          fontSize: '1.35rem', 
+          fontWeight: 800, 
+          letterSpacing: '0.5px',
+          background: 'linear-gradient(90deg, #fbbf24, #f59e0b)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent'
+        }}>
           PokéMarket360
         </h1>
       </div>
 
+      {/* Tabs Navegación */}
       {isAuthenticated && (
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ 
+          display: 'flex', 
+          gap: '6px',
+          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+          padding: '4px',
+          borderRadius: '12px',
+          border: '1px solid rgba(255, 255, 255, 0.08)'
+        }}>
           <button
             onClick={() => setActiveTab('catalog')}
             style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
+              padding: '8px 20px',
+              borderRadius: '8px',
               border: 'none',
               cursor: 'pointer',
-              fontWeight: 'bold',
-              backgroundColor: activeTab === 'catalog' ? '#ffcb05' : 'transparent',
-              color: activeTab === 'catalog' ? '#2a75bb' : '#ffffff'
+              fontWeight: '700',
+              fontSize: '0.9rem',
+              transition: 'all 0.2s ease',
+              backgroundColor: activeTab === 'catalog' ? '#f59e0b' : 'transparent',
+              color: activeTab === 'catalog' ? '#0f172a' : '#cbd5e1',
+              boxShadow: activeTab === 'catalog' ? '0 2px 8px rgba(245, 158, 11, 0.3)' : 'none'
             }}
           >
             Catálogo
@@ -58,13 +82,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
           <button
             onClick={() => setActiveTab('orders')}
             style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
+              padding: '8px 20px',
+              borderRadius: '8px',
               border: 'none',
               cursor: 'pointer',
-              fontWeight: 'bold',
-              backgroundColor: activeTab === 'orders' ? '#ffcb05' : 'transparent',
-              color: activeTab === 'orders' ? '#2a75bb' : '#ffffff'
+              fontWeight: '700',
+              fontSize: '0.9rem',
+              transition: 'all 0.2s ease',
+              backgroundColor: activeTab === 'orders' ? '#f59e0b' : 'transparent',
+              color: activeTab === 'orders' ? '#0f172a' : '#cbd5e1',
+              boxShadow: activeTab === 'orders' ? '0 2px 8px rgba(245, 158, 11, 0.3)' : 'none'
             }}
           >
             Pedidos
@@ -72,22 +99,45 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
         </div>
       )}
 
+      
       <div>
         {isAuthenticated ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '0.9rem', color: '#ffcb05' }}>
-              👤 {activeAccount?.name || activeAccount?.username}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              fontSize: '0.85rem',
+              fontWeight: '600',
+              color: '#f8fafc'
+            }}>
+              <span style={{ 
+                width: '8px', 
+                height: '8px', 
+                backgroundColor: '#10b981', 
+                borderRadius: '50%',
+                boxShadow: '0 0 8px #10b981'
+              }} />
+              <span>{activeAccount?.name || activeAccount?.username}</span>
+            </div>
+
             <button
               onClick={handleLogout}
               style={{
-                padding: '6px 12px',
-                backgroundColor: '#ef5350',
-                color: '#fff',
+                padding: '8px 16px',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
                 border: 'none',
-                borderRadius: '4px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 6px rgba(239, 68, 68, 0.3)'
               }}
             >
               Cerrar Sesión
@@ -97,13 +147,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
           <button
             onClick={handleLogin}
             style={{
-              padding: '8px 16px',
-              backgroundColor: '#ffcb05',
-              color: '#2a75bb',
+              padding: '10px 20px',
+              backgroundColor: '#f59e0b',
+              color: '#0f172a',
               border: 'none',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
+              borderRadius: '8px',
+              fontWeight: '800',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)'
             }}
           >
             Iniciar Sesión con Microsoft

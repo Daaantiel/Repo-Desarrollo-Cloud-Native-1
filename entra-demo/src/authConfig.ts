@@ -5,8 +5,7 @@ clientId: import.meta.env.VITE_SPA_CLIENT_ID,
 authority:
 'https://login.microsoftonline.com/' +
 import.meta.env.VITE_ENTRA_TENANT_ID,
-redirectUri:
-window.location.origin + '/redirect.html',
+redirectUri: window.location.origin + '/redirect.html',
 postLogoutRedirectUri: window.location.origin,
 },
 cache: {

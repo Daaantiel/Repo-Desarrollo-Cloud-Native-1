@@ -12,16 +12,13 @@ export default function App() {
   const { instance } = useMsal();
   const [activeTab, setActiveTab] = useState<TabType>('catalog');
 
-  const handleLogin = async () => {
-    try {
-      const result = await instance.loginPopup({
-        ...tokenRequest,
-        prompt: 'select_account',
-      });
-      instance.setActiveAccount(result.account);
-    } catch (e) {
+  const handleLogin = () => {
+    instance.loginRedirect({
+      ...tokenRequest,
+      prompt: 'select_account',
+    }).catch((e) => {
       console.error('Error al iniciar sesión:', e);
-    }
+    });
   };
 
   return (

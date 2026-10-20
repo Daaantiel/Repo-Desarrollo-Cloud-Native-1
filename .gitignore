@@ -1,0 +1,29 @@
+﻿# ==========================================
+# POKEMARKET360 - EVALUACION 2
+# ==========================================
+
+# Java / Maven
+**/target/
+*.class
+*.log
+
+# React / Node.js
+**/node_modules/
+**/dist/
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Claves privadas
+*.pem
+*.key
+
+# Archivos del editor
+.vscode/
+.idea/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

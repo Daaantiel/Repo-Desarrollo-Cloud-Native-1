@@ -1,0 +1,21 @@
+
+services:
+
+  # ==========================================
+  # BFF - POKEMARKET360 AWS EV2
+  # ==========================================
+
+  bff:
+    image: pokemarket-bff:ev2
+    container_name: pokemarket-bff
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8081:8081"
+
+    env_file:
+      - .env
+
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=65.0"

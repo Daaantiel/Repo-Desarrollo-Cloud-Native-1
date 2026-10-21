@@ -1,0 +1,11 @@
+# ==========================================
+# MS-CLIENTES - AWS EV2
+# ==========================================
+
+server:
+  port: 8082
+  address: 0.0.0.0
+
+spring:
+  application:
+    name: ms-clientes

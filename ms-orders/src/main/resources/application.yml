@@ -1,0 +1,31 @@
+
+# ==========================================
+# MS-ORDERS - AWS EV2
+# ==========================================
+
+server:
+  port: 8087
+  address: 0.0.0.0
+
+spring:
+  application:
+    name: ms-orders
+
+  rabbitmq:
+    host: 172.31.28.107
+    port: 5673
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+
+# ==========================================
+# MENSAJERIA POKEMARKET360
+# ==========================================
+
+messaging:
+  exchange: cmd.direct
+
+  routing:
+    email: email.send
+    stock: stock.reserve
+    invoice: invoice.gen
+

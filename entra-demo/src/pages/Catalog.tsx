@@ -8,9 +8,12 @@ export const Catalog: React.FC = () => {
   const [products, setProducts] = useState<PokemonProduct[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [orderingId, setOrderingId] = useState<number | null>(null);
+  const [cart, setCart] = useState<{ product: PokemonProduct; cantidad: number }[]>([]);
+  const [pendingOrder, setPendingOrder] = useState<number | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [feedback, setFeedback] = useState('');
 
-  const BFF_URL = import.meta.env.VITE_BFF_BASE_URL || 'http://3.83.25.148:8081';
+  const BFF_URL = import.meta.env.VITE_BFF_BASE_URL || 'http://localhost:8081';
 
   // 1. Obtención del token JWT de Entra ID
   const getAccessToken = async (): Promise<string | null> => {
@@ -57,38 +60,104 @@ export const Catalog: React.FC = () => {
     loadProducts();
   }, [accounts]);
 
-  // 3. Crear pedido al hacer clic en "Pedir Carta"
-  const handleCreateOrder = async (product: PokemonProduct) => {
-    setOrderingId(product.id);
+  // Agregar al carrito sin generar todavía un pedido.
+  const handleCreateOrder = (product: PokemonProduct) => {
+    if (pendingOrder !== null) {
+      alert('Resuelve primero el pago de prueba pendiente.');
+      return;
+    }
+    if (Number(product.stock) <= 0) {
+      setFeedback(`La carta "${product.nombre}" está agotada.`);
+      return;
+    }
+    setCart(prev => {
+      const actual = prev.find(item => item.product.id === product.id);
+      if (actual && actual.cantidad >= Number(product.stock)) return prev;
+      if (actual) {
+        return prev.map(item => item.product.id === product.id
+          ? { ...item, cantidad: Math.min(Number(product.stock), 99, item.cantidad + 1) }
+          : item);
+      }
+      return [...prev, { product, cantidad: 1 }];
+    });
+    setFeedback(`Carta "${product.nombre}" agregada al carrito`);
+  };
+
+  const cambiarCantidad = (id: number, delta: number) => {
+    if (pendingOrder !== null) return;
+    setCart(prev => prev
+      .map(item => item.product.id === id
+        ? { ...item, cantidad: Math.min(Number(item.product.stock), item.cantidad + delta) }
+        : item)
+      .filter(item => item.cantidad > 0));
+  };
+
+  const totalCarrito = cart.reduce(
+    (total, item) => total + Number(item.product.precio || 0) * item.cantidad,
+    0
+  );
+
+  // Crea un pedido PENDIENTE_PAGO vinculado por el BFF al usuario JWT.
+  const finalizarCompra = async () => {
+    if (cart.length === 0 || processing || pendingOrder !== null) return;
+    setProcessing(true);
     try {
       const token = await getAccessToken();
+      if (!token) throw new Error('Sesión de Microsoft no disponible');
       const response = await fetch(`${BFF_URL}/api/orders`, {
         method: 'POST',
         headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          productoId: product.id,
-          cantidad: 1,
-          precioUnitario: product.precio
-        })
+          items: cart.map(item => ({
+            productoId: item.product.id,
+            cantidad: item.cantidad,
+            precioUnitario: item.product.precio,
+          })),
+        }),
       });
-
-      if (!response.ok) {
-        throw new Error(`No se pudo procesar el pedido (Estado ${response.status})`);
-      }
-
-      alert(`¡Pedido registrado con éxito para la carta "${product.nombre}"!`);
-
-      // Descontar stock localmente para actualización visual inmediata
-      setProducts(prev =>
-        prev.map(p => (p.id === product.id ? { ...p, stock: p.stock - 1 } : p))
-      );
-    } catch (err: any) {
-      alert(`Error al generar pedido: ${err.message}`);
+      if (!response.ok) throw new Error(`Error ${response.status} al registrar pedido`);
+      const data = await response.json();
+      if (!Number.isInteger(Number(data.id))) throw new Error('Pedido sin ID');
+      setPendingOrder(Number(data.id));
+      setFeedback(`Pedido #${data.id} creado: PENDIENTE_PAGO`);
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : 'Error creando pedido');
     } finally {
-      setOrderingId(null);
+      setProcessing(false);
+    }
+  };
+
+  const simularPago = async (approved: boolean) => {
+    if (pendingOrder === null || processing) return;
+    setProcessing(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error('Sesión de Microsoft no disponible');
+      const response = await fetch(
+        `${BFF_URL}/api/orders/${pendingOrder}/simulate-payment`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ approved }),
+        }
+      );
+      if (!response.ok) throw new Error(`Error ${response.status} al simular pago`);
+      const data = await response.json();
+      setFeedback(approved
+        ? `Pago DEMO aprobado. Pedido #${data.id}: ${data.estado}. RabbitMQ: ${data.mensajeria ?? 'pendiente'}`
+        : `Pago DEMO rechazado. Pedido #${data.id}: ${data.estado}`);
+      setPendingOrder(null);
+      setCart([]);
+      if (approved) await loadProducts();
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : 'Error simulando pago');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -221,6 +290,68 @@ export const Catalog: React.FC = () => {
           </button>
         </div>
 
+        {/* Carrito y pasarela simulada, sin dinero real */}
+        <div style={{
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '18px', padding: '22px', marginBottom: '24px',
+          color: '#f8fafc'
+        }}>
+          <h3 style={{ marginTop: 0, color: '#fbbf24' }}>Carrito de compras (DEMO)</h3>
+          {cart.length === 0 ? (
+            <p style={{color:'#94a3b8'}}>Selecciona una carta para agregarla al carrito.</p>
+          ) : (
+            <>
+              {cart.map(item => (
+                <div key={item.product.id} style={{
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: '12px',
+                  borderBottom: '1px solid rgba(255,255,255,0.08)',
+                  padding: '10px 0', flexWrap: 'wrap'
+                }}>
+                  <strong>{item.product.nombre}</strong>
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <button disabled={processing || pendingOrder !== null}
+                      onClick={() => cambiarCantidad(item.product.id, -1)}>-</button>
+                    <span>{item.cantidad} un.</span>
+                    <button disabled={processing || pendingOrder !== null}
+                      onClick={() => cambiarCantidad(item.product.id, 1)}>+</button>
+                  </div>
+                  <strong>${(Number(item.product.precio || 0) * item.cantidad).toLocaleString('es-CL')}</strong>
+                </div>
+              ))}
+              <p style={{ textAlign: 'right', fontWeight: 800, color: '#fbbf24' }}>
+                Total ilustrativo: ${totalCarrito.toLocaleString('es-CL')}
+              </p>
+            </>
+          )}
+          {feedback && <p role="status" style={{ color: '#34d399' }}>{feedback}</p>}
+          {pendingOrder === null ? (
+            <button
+              disabled={processing || cart.length === 0}
+              onClick={finalizarCompra}
+              style={{padding:'12px 20px', background:'#f59e0b', color:'#111827',
+                border:0, borderRadius:'10px', fontWeight:800,
+                cursor:'pointer', opacity: cart.length === 0 ? 0.5 : 1}}
+            >Finalizar compra</button>
+          ) : (
+            <div style={{border:'1px solid #fbbf24', borderRadius:'12px', padding:'15px'}}>
+              <h4 style={{margin:'0 0 6px'}}>Pago simulado — Pedido #{pendingOrder}</h4>
+              <p style={{fontSize:'0.85rem',color:'#94a3b8'}}>
+                No ingreses datos bancarios. No se realizará ningún cobro real.
+              </p>
+              <div style={{display:'flex',gap:'10px',flexWrap:'wrap'}}>
+                <button disabled={processing} onClick={() => simularPago(true)}
+                  style={{padding:'11px 16px',background:'#10b981',color:'#061a16',
+                    border:0,borderRadius:'9px',fontWeight:800}}>Aprobar pago DEMO</button>
+                <button disabled={processing} onClick={() => simularPago(false)}
+                  style={{padding:'11px 16px',background:'#ef4444',color:'white',
+                    border:0,borderRadius:'9px',fontWeight:800}}>Rechazar pago DEMO</button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Rejilla de Cartas */}
         {products.length === 0 ? (
           <div style={{
@@ -249,7 +380,7 @@ export const Catalog: React.FC = () => {
                 key={product.id}
                 product={product}
                 onOrder={handleCreateOrder}
-                isOrdering={orderingId === product.id}
+                isOrdering={processing}
               />
             ))}
           </div>

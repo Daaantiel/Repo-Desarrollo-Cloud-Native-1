@@ -1,294 +1,431 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMsal } from '@azure/msal-react';
-import { OrderStatusBadge, type OrderStatus } from '../components/OrderStatusBadge';
 import { tokenRequest } from '../authConfig';
 
-interface OrderItem {
+interface Pedido {
   id: number;
-  productoId: number;
+  productoId?: number;
+  productId?: number;
   nombreProducto?: string;
-  cantidad: number;
-  precioUnitario?: number;
-  precioTotal?: number;
-  estado: OrderStatus | string;
+  cantidad?: number;
+  quantity?: number;
+  estado?: string;
+  fecha?: string;
   fechaCreacion?: string;
 }
 
+interface ResumenProducto {
+  productoId: number;
+  nombreProducto: string;
+  cantidadTotal: number;
+  totalPedidos: number;
+}
+
+const BFF_URL =
+  import.meta.env.VITE_BFF_BASE_URL || 'http://localhost:8081';
+
+const fondo =
+  'radial-gradient(circle at 50% -20%, #1e1b4b 0%, #0f172a 60%, #020617 100%)';
+
+const estiloBoton: React.CSSProperties = {
+  padding: '11px 17px',
+  borderRadius: '11px',
+  border: '1px solid rgba(255,255,255,0.14)',
+  background: 'rgba(255,255,255,0.07)',
+  color: '#fbbf24',
+  cursor: 'pointer',
+  fontWeight: 700,
+};
+
+const estiloCelda: React.CSSProperties = {
+  padding: '17px 20px',
+  borderBottom: '1px solid rgba(255,255,255,0.06)',
+};
+
 export const Orders: React.FC = () => {
   const { instance, accounts } = useMsal();
-  const [orders, setOrders] = useState<OrderItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+
+  const [orders, setOrders] = useState<Pedido[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
 
-  const BFF_URL = import.meta.env.VITE_BFF_BASE_URL || 'http://3.83.25.148:8081';
-
-  // Token JWT de Entra ID
-  const getAccessToken = async (): Promise<string | null> => {
-    if (accounts.length === 0) return null;
-    try {
-      const response = await instance.acquireTokenSilent({
-        ...tokenRequest,
-        account: accounts[0]
-      });
-      return response.accessToken;
-    } catch (e) {
-      console.error('Error al obtener token:', e);
-      return null;
-    }
-  };
-
-  // Cargar pedidos desde el BFF
-  const loadOrders = async () => {
+  // Obtener los pedidos mediante el BFF protegido por Entra ID.
+  const loadOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const token = await getAccessToken();
+      const account = accounts[0];
+
+      if (!account) {
+        throw new Error('Debes iniciar sesión para consultar los pedidos.');
+      }
+
+      const tokenResponse = await instance.acquireTokenSilent({
+        ...tokenRequest,
+        account,
+      });
+
       const response = await fetch(`${BFF_URL}/api/orders`, {
         headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${tokenResponse.accessToken}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {
-        throw new Error(`Error ${response.status}: No se pudo obtener la lista de pedidos`);
+        throw new Error(
+          `Error HTTP ${response.status} al consultar los pedidos`
+        );
       }
 
-      const data = await response.json();
-      setOrders(data);
-    } catch (err: any) {
-      setError(err.message || 'Error de conexión con ms-pedidos');
+      const data: unknown = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error('El servidor devolvió un formato inesperado.');
+      }
+
+      setOrders(data as Pedido[]);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Error al cargar los pedidos.'
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [instance, accounts]);
 
   useEffect(() => {
-    loadOrders();
-  }, [accounts]);
+    void loadOrders();
+  }, [loadOrders]);
 
-  // Vista de Carga Estilizada
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: 'calc(100vh - 70px)',
-        background: 'radial-gradient(circle at 50% -20%, #1e1b4b 0%, #0f172a 60%, #020617 100%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px',
-        color: '#f8fafc'
-      }}>
-        <div style={{ fontSize: '3rem', marginBottom: '12px' }}></div>
-        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#fbbf24' }}>
-          Cargando tus pedidos...
-        </h3>
-        <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '6px' }}>
-          Consultando el historial de transacciones desde ms-pedidos
-        </p>
-      </div>
-    );
-  }
+  // Agrupar compras de una misma carta y sumar sus cantidades.
+  const resumen = useMemo<ResumenProducto[]>(() => {
+    const agrupados = new Map<number, ResumenProducto>();
 
-  // Vista de Error Estilizada
-  if (error) {
-    return (
-      <div style={{
-        minHeight: 'calc(100vh - 70px)',
-        background: 'radial-gradient(circle at 50% -20%, #1e1b4b 0%, #0f172a 60%, #020617 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px'
-      }}>
-        <div style={{
-          backgroundColor: 'rgba(239, 68, 68, 0.08)',
-          border: '1px solid rgba(239, 68, 68, 0.25)',
-          padding: '32px',
-          borderRadius: '20px',
-          textAlign: 'center',
-          maxWidth: '450px',
-          backdropFilter: 'blur(10px)'
-        }}>
-          <span style={{ fontSize: '2.5rem' }}></span>
-          <h3 style={{ color: '#f87171', margin: '12px 0 8px 0', fontWeight: 800 }}>
-            Error al consultar pedidos
-          </h3>
-          <p style={{ color: '#fca5a5', fontSize: '0.88rem', margin: '0 0 20px 0' }}>
-            {error}
-          </p>
-          <button
-            onClick={loadOrders}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#ef4444',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              fontWeight: '800',
-              fontSize: '0.9rem',
-              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
-            }}
-          >
-            Reintentar
-          </button>
-        </div>
-      </div>
+    for (const pedido of orders) {
+      if (!['PAGADO', 'COMPLETADO'].includes(String(pedido.estado ?? '').toUpperCase())) {
+        continue;
+      }
+
+      const productoId = Number(
+        pedido.productoId ?? pedido.productId
+      );
+
+      const cantidad = Number(
+        pedido.cantidad ?? pedido.quantity ?? 1
+      );
+
+      if (
+        !Number.isInteger(productoId) ||
+        productoId <= 0 ||
+        !Number.isInteger(cantidad) ||
+        cantidad <= 0
+      ) {
+        continue;
+      }
+
+      const actual = agrupados.get(productoId);
+
+      if (actual) {
+        actual.cantidadTotal += cantidad;
+        actual.totalPedidos += 1;
+      } else {
+        agrupados.set(productoId, {
+          productoId,
+          nombreProducto:
+            pedido.nombreProducto || `Carta #${productoId}`,
+          cantidadTotal: cantidad,
+          totalPedidos: 1,
+        });
+      }
+    }
+
+    return Array.from(agrupados.values()).sort(
+      (a, b) => a.productoId - b.productoId
     );
-  }
+  }, [orders]);
+
+  const totalCartas = resumen.reduce(
+    (total, item) => total + item.cantidadTotal,
+    0
+  );
+
+  const totalCompras = resumen.reduce(
+    (total, item) => total + item.totalPedidos,
+    0
+  );
 
   return (
-    <div style={{
-      minHeight: 'calc(100vh - 70px)',
-      background: 'radial-gradient(circle at 50% -20%, #1e1b4b 0%, #0f172a 60%, #020617 100%)',
-      padding: '32px 20px 60px 20px',
-      boxSizing: 'border-box'
-    }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '32px',
-          flexWrap: 'wrap',
-          gap: '16px'
-        }}>
+    <div
+      style={{
+        minHeight: 'calc(100vh - 70px)',
+        background: fondo,
+        padding: '32px 20px 60px',
+        color: '#f8fafc',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div style={{ maxWidth: '1050px', margin: '0 auto' }}>
+
+        {/* ENCABEZADO */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '18px',
+            marginBottom: '26px',
+          }}
+        >
           <div>
-            <h2 style={{
-              margin: 0,
-              fontSize: '1.8rem',
-              fontWeight: 900,
-              color: '#f8fafc',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <span></span> Mis Pedidos de Cartas
+            <h2
+              style={{
+                fontSize: '1.8rem',
+                fontWeight: 900,
+                margin: 0,
+              }}
+            >
+              Mis Cartas Compradas
             </h2>
-            <p style={{ margin: '4px 0 0 0', color: '#94a3b8', fontSize: '0.88rem' }}>
-              Historial de compras y estado de tus transacciones
+
+            <p style={{ color: '#94a3b8', marginTop: '7px' }}>
+              Resumen acumulado de compras registradas en PostgreSQL
             </p>
           </div>
 
-          <button
-            onClick={loadOrders}
-            style={{
-              padding: '10px 18px',
-              backgroundColor: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              color: '#fbbf24',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              fontWeight: '700',
-              fontSize: '0.88rem',
-              backdropFilter: 'blur(10px)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
+          <button style={estiloBoton} onClick={() => void loadOrders()}>
             Actualizar Tabla
           </button>
         </div>
 
-        {/* Estado Vacío / Tabla de Pedidos */}
-        {orders.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 20px',
-            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            borderRadius: '20px',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            color: '#94a3b8'
-          }}>
-            <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '12px' }}>🃏</span>
-            <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#f8fafc' }}>
-              Aún no has realizado ninguna compra de cartas Pokémon.
-            </p>
-            <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem' }}>
-              Visita el catálogo para realizar tu primer pedido.
-            </p>
+        {/* AVISO DE ALCANCE ACTUAL */}
+        <p
+          style={{
+            color: '#94a3b8',
+            fontSize: '0.78rem',
+            marginBottom: '18px',
+          }}
+        >
+          Pedidos asociados a tu identidad Microsoft Entra ID. Sólo se cuentan cartas pagadas.
+        </p>
+
+        {loading ? (
+          <div style={{ padding: '65px', textAlign: 'center' }}>
+            <h3 style={{ color: '#fbbf24' }}>
+              Cargando pedidos desde AWS...
+            </h3>
+          </div>
+        ) : error ? (
+          <div
+            style={{
+              padding: '30px',
+              borderRadius: '15px',
+              background: 'rgba(239,68,68,0.10)',
+              border: '1px solid rgba(239,68,68,0.3)',
+            }}
+          >
+            <h3 style={{ color: '#f87171' }}>
+              Error al consultar pedidos
+            </h3>
+            <p>{error}</p>
+            <button style={estiloBoton} onClick={() => void loadOrders()}>
+              Reintentar
+            </button>
           </div>
         ) : (
-          <div style={{
-            overflowX: 'auto',
-            borderRadius: '18px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(12px)',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)'
-          }}>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              color: '#f8fafc',
-              textAlign: 'left'
-            }}>
-              <thead>
-                <tr style={{
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.04)'
-                }}>
-                  <th style={{ padding: '16px 20px', fontSize: '0.82rem', textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.5px' }}>
-                    ID Pedido
-                  </th>
-                  <th style={{ padding: '16px 20px', fontSize: '0.82rem', textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.5px' }}>
-                    Producto / Carta
-                  </th>
-                  <th style={{ padding: '16px 20px', fontSize: '0.82rem', textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.5px' }}>
-                    Cantidad
-                  </th>
-                  <th style={{ padding: '16px 20px', fontSize: '0.82rem', textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.5px' }}>
-                    Estado
-                  </th>
-                  <th style={{ padding: '16px 20px', fontSize: '0.82rem', textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.5px' }}>
-                    Fecha
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((order, index) => (
-                  <tr
-                    key={order.id}
+          <>
+            {/* INDICADORES ACUMULADOS */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  'repeat(auto-fit, minmax(190px, 1fr))',
+                gap: '15px',
+                marginBottom: '26px',
+              }}
+            >
+              {[
+                ['Cartas compradas', totalCartas],
+                ['Tipos de cartas', resumen.length],
+                ['Compras realizadas', totalCompras],
+              ].map(([titulo, valor]) => (
+                <div
+                  key={String(titulo)}
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.09)',
+                    borderRadius: '16px',
+                    padding: '22px',
+                  }}
+                >
+                  <div
                     style={{
-                      borderBottom: index === orders.length - 1 ? 'none' : '1px solid rgba(255, 255, 255, 0.06)'
+                      color: '#94a3b8',
+                      fontSize: '0.85rem',
+                      marginBottom: '12px',
                     }}
                   >
-                    <td style={{ padding: '16px 20px', fontWeight: 800, fontSize: '0.9rem', color: '#cbd5e1' }}>
-                      <span style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        fontFamily: 'monospace'
-                      }}>
-                        #{order.id}
-                      </span>
-                    </td>
-                    <td style={{ padding: '16px 20px', fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>
-                      {order.nombreProducto || `Carta #${order.productoId}`}
-                    </td>
-                    <td style={{ padding: '16px 20px', fontWeight: 600, color: '#94a3b8', fontSize: '0.9rem' }}>
-                      {order.cantidad} un.
-                    </td>
-                    <td style={{ padding: '16px 20px' }}>
-                      <OrderStatusBadge status={order.estado} />
-                    </td>
-                    <td style={{ padding: '16px 20px', fontSize: '0.85rem', color: '#94a3b8' }}>
-                      {order.fechaCreacion 
-                        ? new Date(order.fechaCreacion).toLocaleString('es-CL') 
-                        : 'Reciente'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                    {titulo}
+                  </div>
+                  <div
+                    style={{
+                      color: '#fbbf24',
+                      fontWeight: 900,
+                      fontSize: '2rem',
+                    }}
+                  >
+                    {valor}
+                  </div>
+                </div>
+              ))}
+            </div>
 
+            {/* ALTERNAR ENTRE RESUMEN E HISTORIAL */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                marginBottom: '20px',
+              }}
+            >
+              <button
+                style={{
+                  ...estiloBoton,
+                  background: !mostrarHistorial
+                    ? '#f59e0b'
+                    : 'rgba(255,255,255,0.07)',
+                  color: !mostrarHistorial ? '#111827' : '#fbbf24',
+                }}
+                onClick={() => setMostrarHistorial(false)}
+              >
+                Resumen acumulado
+              </button>
+
+              <button
+                style={{
+                  ...estiloBoton,
+                  background: mostrarHistorial
+                    ? '#f59e0b'
+                    : 'rgba(255,255,255,0.07)',
+                  color: mostrarHistorial ? '#111827' : '#fbbf24',
+                }}
+                onClick={() => setMostrarHistorial(true)}
+              >
+                Historial de pedidos
+              </button>
+            </div>
+
+            {orders.length === 0 ? (
+              <div
+                style={{
+                  padding: '60px 20px',
+                  textAlign: 'center',
+                  borderRadius: '18px',
+                  background: 'rgba(255,255,255,0.04)',
+                }}
+              >
+                <div style={{ fontSize: '2.5rem' }}></div>
+                <h3>Todavía no hay compras registradas.</h3>
+                <p style={{ color: '#94a3b8' }}>
+                  Visita el catálogo para comprar tu primera carta.
+                </p>
+              </div>
+            ) : (
+              <div
+                style={{
+                  overflowX: 'auto',
+                  borderRadius: '18px',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(15,23,42,0.70)',
+                }}
+              >
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    textAlign: 'left',
+                  }}
+                >
+                  <thead
+                    style={{
+                      color: '#fbbf24',
+                      background: 'rgba(255,255,255,0.05)',
+                      fontSize: '0.82rem',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {mostrarHistorial ? (
+                      <tr>
+                        <th style={estiloCelda}>Pedido</th>
+                        <th style={estiloCelda}>Carta</th>
+                        <th style={estiloCelda}>Cantidad</th>
+                        <th style={estiloCelda}>Estado</th>
+                        <th style={estiloCelda}>Fecha</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th style={estiloCelda}>Producto / Carta</th>
+                        <th style={estiloCelda}>Cantidad total</th>
+                        <th style={estiloCelda}>Compras</th>
+                      </tr>
+                    )}
+                  </thead>
+
+                  <tbody>
+                    {mostrarHistorial
+                      ? orders.map((pedido) => (
+                          <tr key={`${pedido.id}-${pedido.productoId ?? pedido.productId}`}>
+                            <td style={estiloCelda}>#{pedido.id}</td>
+                            <td style={estiloCelda}>
+                              {pedido.nombreProducto ||
+                                `Carta #${pedido.productoId ?? pedido.productId}`}
+                            </td>
+                            <td style={estiloCelda}>
+                              {pedido.cantidad ?? pedido.quantity ?? 1} un.
+                            </td>
+                            <td style={estiloCelda}>
+                              {pedido.estado || 'REGISTRADO'}
+                            </td>
+                            <td style={estiloCelda}>
+                              {pedido.fecha ||
+                                pedido.fechaCreacion ||
+                                'Reciente'}
+                            </td>
+                          </tr>
+                        ))
+                      : resumen.map((item) => (
+                          <tr key={item.productoId}>
+                            <td
+                              style={{
+                                ...estiloCelda,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {item.nombreProducto}
+                            </td>
+                            <td
+                              style={{
+                                ...estiloCelda,
+                                color: '#34d399',
+                                fontWeight: 900,
+                              }}
+                            >
+                              {item.cantidadTotal} un.
+                            </td>
+                            <td style={estiloCelda}>
+                              {item.totalPedidos}
+                            </td>
+                          </tr>
+                        ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,5 @@
-
 # ==========================================
-# MS-ORDERS - AWS EV2
+# MS-ORDERS - AWS + POSTGRESQL + RABBITMQ
 # ==========================================
 
 server:
@@ -11,15 +10,26 @@ spring:
   application:
     name: ms-orders
 
+  # Base de datos PostgreSQL en Amazon RDS
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME:pokemarket360}?sslmode=require
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  # Persistencia JPA
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+
+  # Configuracion original de RabbitMQ
   rabbitmq:
     host: 172.31.28.107
     port: 5673
     username: ${RABBITMQ_USER}
     password: ${RABBITMQ_PASSWORD}
-
-# ==========================================
-# MENSAJERIA POKEMARKET360
-# ==========================================
 
 messaging:
   exchange: cmd.direct
@@ -29,3 +39,6 @@ messaging:
     stock: stock.reserve
     invoice: invoice.gen
 
+# Inventario en el microservicio de catalogo
+inventory:
+  base-url: http://172.31.30.211:8083

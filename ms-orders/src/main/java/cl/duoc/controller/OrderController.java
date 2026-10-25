@@ -1,89 +1,67 @@
-
 package cl.duoc.ms_orders.controller;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-
 import cl.duoc.ms_orders.service.OrderNotificationService;
-
+import cl.duoc.ms_orders.service.OrderPersistenceService;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.amqp.AmqpException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
+    private final OrderPersistenceService persistence;
+    private final OrderNotificationService notifications;
 
-    // ==========================================
-    // DEPENDENCIAS
-    // ==========================================
-
-    private final OrderNotificationService notificationService;
-
-    public OrderController(
-            OrderNotificationService notificationService) {
-
-        this.notificationService = notificationService;
+    public OrderController(OrderPersistenceService persistence,
+                           OrderNotificationService notifications) {
+        this.persistence = persistence;
+        this.notifications = notifications;
     }
-
-    // ==========================================
-    // ALMACENAMIENTO TEMPORAL DE PEDIDOS
-    // ==========================================
-
-    private final List<Map<String, Object>> ordersList =
-            new CopyOnWriteArrayList<>();
-
-    // ==========================================
-    // 1. OBTENER TODOS LOS PEDIDOS
-    // ==========================================
 
     @GetMapping
-    public ResponseEntity<?> getAllOrders() {
-
-        return ResponseEntity.ok(ordersList);
+    public ResponseEntity<?> getAllOrders(@RequestHeader("X-User-Id") String userId) {
+        return ResponseEntity.ok(persistence.listar(userId));
     }
 
-    // ==========================================
-    // 2. CREAR NUEVO PEDIDO
-    // ==========================================
+    @GetMapping("/summary")
+    public ResponseEntity<?> getSummary(@RequestHeader("X-User-Id") String userId) {
+        return ResponseEntity.ok(persistence.resumen(userId));
+    }
 
     @PostMapping
     public ResponseEntity<?> createOrder(
-            @RequestBody Map<String, Object> orderData) {
+            @RequestHeader("X-User-Id") String userId,
+            @RequestBody Map<String, Object> body) {
+        Map<String, Object> pedido = persistence.registrar(userId, body);
+        System.out.println("[MS-ORDERS] Pedido pendiente: #" + pedido.get("id"));
+        return ResponseEntity.status(HttpStatus.CREATED).body(pedido);
+    }
 
-        // Asignar ID, fecha y estado del pedido
-        orderData.put("id", ordersList.size() + 1);
-        orderData.put("fecha", LocalDate.now().toString());
-        orderData.put("estado", "COMPLETADO");
-
-        // Guardar el pedido
-        ordersList.add(orderData);
-
-        System.out.println(
-                "[MS-ORDERS] Pedido registrado: "
-                + orderData.get("id")
-        );
-
-        // ==========================================
-        // PUBLICAR NOTIFICACION EN RABBITMQ
-        // ==========================================
-
-        try {
-
-            notificationService.notificarPedido(
-                    orderData.get("id")
-            );
-
-        } catch (AmqpException e) {
-
-            System.err.println(
-                    "[MS-ORDERS] Error publicando mensaje: "
-                    + e.getMessage()
-            );
+    @PostMapping("/{id}/simulate-payment")
+    public ResponseEntity<?> simulatePayment(
+            @RequestHeader("X-User-Id") String userId,
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        if (!(body.get("approved") instanceof Boolean aprobado)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "approved debe ser true o false");
         }
-
-        return ResponseEntity.ok(orderData);
+        // La transacción termina antes de publicar en RabbitMQ.
+        var resultado = persistence.simularPago(id, userId, aprobado);
+        Map<String, Object> respuesta = new LinkedHashMap<>(resultado.respuesta());
+        if (resultado.publicar()) {
+            try {
+                notifications.notificarPedido(id);
+                respuesta.put("mensajeria", "PUBLICADA");
+            } catch (AmqpException e) {
+                respuesta.put("mensajeria", "ERROR_PUBLICACION");
+                System.err.println("[MS-ORDERS] Fallo RabbitMQ pedido #" + id + ": " + e.getMessage());
+            }
+        }
+        return ResponseEntity.ok(respuesta);
     }
 }

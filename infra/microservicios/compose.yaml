@@ -1,0 +1,51 @@
+
+services:
+
+  # ==========================================
+  # MICROSERVICIO DE CLIENTES
+  # ==========================================
+
+  ms-clientes:
+    image: pokemarket-clientes:ev2
+    container_name: ms-clientes
+    restart: unless-stopped
+
+    ports:
+      - "8082:8082"
+
+  # ==========================================
+  # MICROSERVICIO DE PRODUCTOS
+  # ==========================================
+
+  ms-productos:
+    image: pokemarket-productos:ev2
+    container_name: ms-productos
+    restart: unless-stopped
+
+    ports:
+      - "8083:8083"
+
+    volumes:
+      - productos_data:/data
+
+  # ==========================================
+  # MICROSERVICIO DE PEDIDOS
+  # ==========================================
+
+  ms-orders:
+    image: pokemarket-orders:ev2
+    container_name: ms-orders
+    restart: unless-stopped
+
+    ports:
+      - "8087:8087"
+
+    env_file:
+      - .env
+
+# ==========================================
+# ALMACENAMIENTO PERSISTENTE
+# ==========================================
+
+volumes:
+  productos_data:

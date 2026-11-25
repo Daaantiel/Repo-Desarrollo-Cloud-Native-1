@@ -7,6 +7,14 @@ server:
   address: 0.0.0.0
 
 spring:
+  # Kafka adicional; RabbitMQ y persistencia conservan su configuración.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:172.31.34.110:9092,172.31.34.110:9093,172.31.34.110:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+
   application:
     name: ms-orders
 

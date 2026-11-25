@@ -60,6 +60,11 @@ public class OrderEntity {
         }
     }
 
+    // Solo OrderPersistenceService valida las transiciones antes de llamar esto.
+    public void actualizarEstadoGestion(String nuevoEstado) {
+        this.status = nuevoEstado;
+    }
+
     public Long getId() { return id; }
     public String getUserId() { return userId; }
     public String getStatus() { return status; }
